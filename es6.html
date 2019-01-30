@@ -14,59 +14,70 @@
 <script>
     /**
 
-    2.rest 参数
-    ES6 引入 rest 参数（形式为...变量名），用于获取函数的多余参数，这样就不需要使用arguments对象了。rest 参数搭配的变量是一个数组，该变量将多余的参数放入数组中。
+    3.严格模式
+    从 ES5 开始，函数内部可以设定为严格模式。
 
-        function add(...values) {
-            let sum = 0;
-
-            for (var val of values) {
-                sum += val;
-            }
-
-            return sum;
+        function doSomething(a, b) {
+            'use strict';
+            // code
         }
 
-        add(2, 5, 3) // 10
-
-    上面代码的add函数是一个求和函数，利用 rest 参数，可以向该函数传入任意数目的参数。
-
-    下面是一个 rest 参数代替arguments变量的例子。
-
-        // arguments变量的写法
-        function sortNumbers() {
-            return Array.prototype.slice.call(arguments).sort();
-        }
-
-        // rest参数的写法
-        const sortNumbers = (...numbers) => numbers.sort();
-
-    上面代码的两种写法，比较后可以发现，rest 参数的写法更自然也更简洁。
-
-    arguments对象不是数组，而是一个类似数组的对象。所以为了使用数组的方法，必须使用Array.prototype.slice.call先将其转为数组。rest 参数就不存在这个问题，它就是一个真正的数组，数组特有的方法都可以使用。下面是一个利用 rest 参数改写数组push方法的例子。
-
-        function push(array, ...items) {
-            items.forEach(function(item) {
-                array.push(item);
-                console.log(item);
-            });
-        }
-
-        var a = [];
-        push(a, 1, 2, 3)
-
-    注意，rest 参数之后不能再有其他参数（即只能是最后一个参数），否则会报错。
+    ES2016 做了一点修改，规定只要函数参数使用了默认值、解构赋值、或者扩展运算符，那么函数内部就不能显式设定为严格模式，否则会报错。
 
         // 报错
-        function f(a, ...b, c) {
-            // ...
+        function doSomething(a, b = a) {
+            'use strict';
+            // code
         }
 
-    函数的length属性，不包括 rest 参数。
+        // 报错
+        const doSomething = function ({a, b}) {
+            'use strict';
+            // code
+        };
 
-        (function(a) {}).length  // 1
-        (function(...a) {}).length  // 0
-        (function(a, ...b) {}).length  // 1
+        // 报错
+        const doSomething = (...a) => {
+            'use strict';
+            // code
+        };
+
+        const obj = {
+            // 报错
+            doSomething({a, b}) {
+                'use strict';
+                // code
+            }
+        };
+
+    这样规定的原因是，函数内部的严格模式，同时适用于函数体和函数参数。但是，函数执行的时候，先执行函数参数，然后再执行函数体。这样就有一个不合理的地方，只有从函数体之中，才能知道参数是否应该以严格模式执行，但是参数却应该先于函数体执行。
+
+        // 报错
+        function doSomething(value = 070) {
+            'use strict';
+            return value;
+        }
+
+    上面代码中，参数value的默认值是八进制数070，但是严格模式下不能用前缀0表示八进制，所以应该报错。但是实际上，JavaScript 引擎会先成功执行value = 070，然后进入函数体内部，发现需要用严格模式执行，这时才会报错。
+
+    虽然可以先解析函数体代码，再执行参数代码，但是这样无疑就增加了复杂性。因此，标准索性禁止了这种用法，只要参数使用了默认值、解构赋值、或者扩展运算符，就不能显式指定严格模式。
+
+    两种方法可以规避这种限制。第一种是设定全局性的严格模式，这是合法的。
+
+        'use strict';
+
+        function doSomething(a, b = a) {
+            // code
+        }
+        
+    第二种是把函数包在一个无参数的立即执行函数里面。
+
+        const doSomething = (function () {
+            'use strict';
+            return function(value = 42) {
+                return value;
+            };
+        }());
 
 
 
