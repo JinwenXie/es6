@@ -14,70 +14,46 @@
 <script>
     /**
 
-    3.严格模式
-    从 ES5 开始，函数内部可以设定为严格模式。
+    4.name 属性
+    函数的name属性，返回该函数的函数名。
 
-        function doSomething(a, b) {
-            'use strict';
-            // code
-        }
+        function foo() {}
+        foo.name // "foo"
 
-    ES2016 做了一点修改，规定只要函数参数使用了默认值、解构赋值、或者扩展运算符，那么函数内部就不能显式设定为严格模式，否则会报错。
+    这个属性早就被浏览器广泛支持，但是直到 ES6，才将其写入了标准。
 
-        // 报错
-        function doSomething(a, b = a) {
-            'use strict';
-            // code
-        }
+    需要注意的是，ES6 对这个属性的行为做出了一些修改。如果将一个匿名函数赋值给一个变量，ES5 的name属性，会返回空字符串，而 ES6 的name属性会返回实际的函数名。
 
-        // 报错
-        const doSomething = function ({a, b}) {
-            'use strict';
-            // code
-        };
+        var f = function () {};
 
-        // 报错
-        const doSomething = (...a) => {
-            'use strict';
-            // code
-        };
+        // ES5
+        f.name // ""
 
-        const obj = {
-            // 报错
-            doSomething({a, b}) {
-                'use strict';
-                // code
-            }
-        };
+        // ES6
+        f.name // "f"
 
-    这样规定的原因是，函数内部的严格模式，同时适用于函数体和函数参数。但是，函数执行的时候，先执行函数参数，然后再执行函数体。这样就有一个不合理的地方，只有从函数体之中，才能知道参数是否应该以严格模式执行，但是参数却应该先于函数体执行。
+    上面代码中，变量f等于一个匿名函数，ES5 和 ES6 的name属性返回的值不一样。
 
-        // 报错
-        function doSomething(value = 070) {
-            'use strict';
-            return value;
-        }
+    如果将一个具名函数赋值给一个变量，则 ES5 和 ES6 的name属性都返回这个具名函数原本的名字。
 
-    上面代码中，参数value的默认值是八进制数070，但是严格模式下不能用前缀0表示八进制，所以应该报错。但是实际上，JavaScript 引擎会先成功执行value = 070，然后进入函数体内部，发现需要用严格模式执行，这时才会报错。
+        const bar = function baz() {};
 
-    虽然可以先解析函数体代码，再执行参数代码，但是这样无疑就增加了复杂性。因此，标准索性禁止了这种用法，只要参数使用了默认值、解构赋值、或者扩展运算符，就不能显式指定严格模式。
+        // ES5
+        bar.name // "baz"
 
-    两种方法可以规避这种限制。第一种是设定全局性的严格模式，这是合法的。
+        // ES6
+        bar.name // "baz"
 
-        'use strict';
+    Function构造函数返回的函数实例，name属性的值为anonymous。
 
-        function doSomething(a, b = a) {
-            // code
-        }
-        
-    第二种是把函数包在一个无参数的立即执行函数里面。
+        (new Function).name // "anonymous"
 
-        const doSomething = (function () {
-            'use strict';
-            return function(value = 42) {
-                return value;
-            };
-        }());
+    bind返回的函数，name属性值会加上bound前缀。
+
+        function foo() {};
+        foo.bind({}).name // "bound foo"
+
+        (function(){}).bind({}).name // "bound "
 
 
 
