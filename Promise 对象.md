@@ -234,7 +234,7 @@ then方法返回的是一个新的Promise实例（注意，不是原来那个Pro
 	    err => console.log("rejected: ", err)
 	);
 
-### 5.Promise.prototype.catch()
+### 4.Promise.prototype.catch()
 Promise.prototype.catch方法是.then(null, rejection)或.then(undefined, rejection)的别名，用于指定发生错误时的回调函数。<br>
 
     getJSON('/posts.json').then(function(posts) {
