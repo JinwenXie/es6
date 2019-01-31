@@ -741,3 +741,145 @@ Promise.reject(reason)方法也会返回一个新的 Promise 实例，该实例�
     // true
 
 上面代码中，Promise.reject方法的参数是一个thenable对象，执行以后，后面catch方法的参数不是reject抛出的“出错了”这个字符串，而是thenable对象。<br>
+
+
+### 10.应用
+##### 加载图片
+我们可以将图片的加载写成一个Promise，一旦加载完成，Promise的状态就发生变化。<br>
+
+    const preloadImage = function (path) {
+        return new Promise(function (resolve, reject) {
+            const image = new Image();
+            image.onload  = resolve;
+            image.onerror = reject;
+            image.src = path;
+        });
+    };
+
+##### Generator 函数与 Promise 的结合
+使用 Generator 函数管理流程，遇到异步操作的时候，通常返回一个Promise对象。<br>
+
+    function getFoo () {
+        return new Promise(function (resolve, reject){
+            resolve('foo');
+        });
+    }
+
+    const g = function* () {
+        try {
+            const foo = yield getFoo();
+            console.log(foo);
+        } catch (e) {
+            console.log(e);
+        }
+    };
+
+    function run (generator) {
+        const it = generator();
+
+        function go(result) {
+            if (result.done) return result.value;
+
+            return result.value.then(function (value) {
+                return go(it.next(value));
+            }, function (error) {
+                return go(it.throw(error));
+            });
+        }
+
+        go(it.next());
+    }
+
+    run(g);
+
+上面代码的 Generator 函数g之中，有一个异步操作getFoo，它返回的就是一个Promise对象。函数run用来处理这个Promise对象，并调用下一个next方法。<br>
+
+
+### 11.Promise.try()
+实际开发中，经常遇到一种情况：不知道或者不想区分，函数f是同步函数还是异步操作，但是想用 Promise 来处理它。因为这样就可以不管f是否包含异步操作，都用then方法指定下一步流程，用catch方法处理f抛出的错误。一般就会采用下面的写法。<br>
+
+    Promise.resolve().then(f)
+
+上面的写法有一个缺点，就是如果f是同步函数，那么它会在本轮事件循环的末尾执行。<br>
+
+    const f = () => console.log('now');
+    Promise.resolve().then(f);
+    console.log('next');
+    // next
+    // now
+
+上面代码中，函数f是同步的，但是用 Promise 包装了以后，就变成异步执行了。<br>
+
+那么有没有一种方法，让同步函数同步执行，异步函数异步执行，并且让它们具有统一的 API 呢？回答是可以的，并且还有两种写法。第一种写法是用async函数来写。<br>
+
+    const f = () => console.log('now');
+    (async () => f())();
+    console.log('next');
+    // now
+    // next
+
+上面代码中，第二行是一个立即执行的匿名函数，会立即执行里面的async函数，因此如果f是同步的，就会得到同步的结果；如果f是异步的，就可以用then指定下一步，就像下面的写法。<br>
+
+    (async () => f())()
+    .then(...)
+
+需要注意的是，async () => f()会吃掉f()抛出的错误。所以，如果想捕获错误，要使用promise.catch方法。<br>
+
+    (async () => f())()
+    .then(...)
+    .catch(...)
+
+第二种写法是使用new Promise()。<br>
+
+    const f = () => console.log('now');
+    (() => new Promise(
+        resolve => resolve(f())
+    ))();
+    console.log('next');
+    // now
+    // next
+
+上面代码也是使用立即执行的匿名函数，执行new Promise()。这种情况下，同步函数也是同步执行的。<br>
+
+鉴于这是一个很常见的需求，所以现在有一个提案，提供Promise.try方法替代上面的写法。<br>
+
+    const f = () => console.log('now');
+    Promise.try(f);
+    console.log('next');
+    // now
+    // next
+
+事实上，Promise.try存在已久，Promise 库Bluebird、Q和when，早就提供了这个方法。<br>
+
+由于Promise.try为所有操作提供了统一的处理机制，所以如果想用then方法管理流程，最好都用Promise.try包装一下。这样有许多好处，其中一点就是可以更好地管理异常。<br>
+
+    function getUsername(userId) {
+        return database.users.get({id: userId})
+        .then(function(user) {
+            return user.name;
+        });
+    }
+
+上面代码中，database.users.get()返回一个 Promise 对象，如果抛出异步错误，可以用catch方法捕获，就像下面这样写。<br>
+
+    database.users.get({id: userId})
+    .then(...)
+    .catch(...)
+
+但是database.users.get()可能还会抛出同步错误（比如数据库连接错误，具体要看实现方法），这时你就不得不用try...catch去捕获。<br>
+
+    try {
+        database.users.get({id: userId})
+        .then(...)
+        .catch(...)
+    } catch (e) {
+        // ...
+    }
+
+上面这样的写法就很笨拙了，这时就可以统一用promise.catch()捕获所有同步和异步的错误。<br>
+
+    Promise.try(() => database.users.get({id: userId}))
+    .then(...)
+    .catch(...)
+    
+事实上，Promise.try就是模拟try代码块，就像promise.catch模拟的是catch代码块。<br>
