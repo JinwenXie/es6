@@ -14,215 +14,73 @@
 <script>
     /**
 
-    5.Promise.prototype.catch()
-    Promise.prototype.catch方法是.then(null, rejection)或.then(undefined, rejection)的别名，用于指定发生错误时的回调函数。
+    5.Promise.prototype.finally()
+    finally方法用于指定不管 Promise 对象最后状态如何，都会执行的操作。该方法是 ES2018 引入标准的。
 
-        getJSON('/posts.json').then(function(posts) {
-            // ...
-        }).catch(function(error) {
-            // 处理 getJSON 和 前一个回调函数运行时发生的错误
-            console.log('发生错误！', error);
-        });
+        promise
+            .then(result => {···})
+            .catch(error => {···})
+            .finally(() => {···});
 
-    上面代码中，getJSON方法返回一个 Promise 对象，如果该对象状态变为resolved，则会调用then方法指定的回调函数；如果异步操作抛出错误，状态就会变为rejected，就会调用catch方法指定的回调函数，处理这个错误。另外，then方法指定的回调函数，如果运行中抛出错误，也会被catch方法捕获。
+    上面代码中，不管promise最后的状态，在执行完then或catch指定的回调函数以后，都会执行finally方法指定的回调函数。
 
-        p.then((val) => console.log('fulfilled:', val))
-        .catch((err) => console.log('rejected', err));
+    下面是一个例子，服务器使用 Promise 处理请求，然后使用finally方法关掉服务器。
+
+        server.listen(port)
+            .then(function () {
+                // ...
+            })
+            .finally(server.stop);
+
+    finally方法的回调函数不接受任何参数，这意味着没有办法知道，前面的 Promise 状态到底是fulfilled还是rejected。这表明，finally方法里面的操作，应该是与状态无关的，不依赖于 Promise 的执行结果。
+
+    finally本质上是then方法的特例。
+
+        promise
+            .finally(() => {
+                // 语句
+            });
 
         // 等同于
-        p.then((val) => console.log('fulfilled:', val))
-        .then(null, (err) => console.log("rejected:", err));
-
-    下面是一个例子。
-
-        const promise = new Promise(function(resolve, reject) {
-            throw new Error('test');
-        });
-        promise.catch(function(error) {
-            console.log(error);
-        });
-        // Error: test
-
-    上面代码中，promise抛出一个错误，就被catch方法指定的回调函数捕获。注意，上面的写法与下面两种写法是等价的。
-
-        // 写法一
-        const promise = new Promise(function(resolve, reject) {
-            try {
-                throw new Error('test');
-            } catch(e) {
-                reject(e);
-            }
-        });
-        promise.catch(function(error) {
-            console.log(error);
-        });
-
-        // 写法二
-        const promise = new Promise(function(resolve, reject) {
-            reject(new Error('test'));
-        });
-        promise.catch(function(error) {
-            console.log(error);
-        });
-
-    比较上面两种写法，可以发现reject方法的作用，等同于抛出错误。
-
-    如果 Promise 状态已经变成resolved，再抛出错误是无效的。
-
-        const promise = new Promise(function(resolve, reject) {
-            resolve('ok');
-            throw new Error('test');
-        });
         promise
-        .then(function(value) { console.log(value) })
-        .catch(function(error) { console.log(error) });
-        // ok
+            .then(
+                result => {
+                    // 语句
+                    return result;
+                },
+                error => {
+                    // 语句
+                    throw error;
+                }
+            );
 
-    上面代码中，Promise 在resolve语句后面，再抛出错误，不会被捕获，等于没有抛出。因为 Promise 的状态一旦改变，就永久保持该状态，不会再变了。
+    上面代码中，如果不使用finally方法，同样的语句需要为成功和失败两种情况各写一次。有了finally方法，则只需要写一次。
 
-    Promise 对象的错误具有“冒泡”性质，会一直向后传递，直到被捕获为止。也就是说，错误总是会被下一个catch语句捕获。
+    它的实现也很简单。
 
-        getJSON('/post/1.json').then(function(post) {
-            return getJSON(post.commentURL);
-        }).then(function(comments) {
-            // some code
-        }).catch(function(error) {
-            // 处理前面三个Promise产生的错误
-        });
-
-    上面代码中，一共有三个 Promise 对象：一个由getJSON产生，两个由then产生。它们之中任何一个抛出的错误，都会被最后一个catch捕获。
-
-    一般来说，不要在then方法里面定义 Reject 状态的回调函数（即then的第二个参数），总是使用catch方法。
-
-        // bad
-        promise
-        .then(function(data) {
-            // success
-        }, function(err) {
-            // error
-        });
-
-        // good
-        promise
-        .then(function(data) { //cb
-            // success
-        })
-        .catch(function(err) {
-            // error
-        });
-
-    上面代码中，第二种写法要好于第一种写法，理由是第二种写法可以捕获前面then方法执行中的错误，也更接近同步的写法（try/catch）。因此，建议总是使用catch方法，而不使用then方法的第二个参数。
-
-    跟传统的try/catch代码块不同的是，如果没有使用catch方法指定错误处理的回调函数，Promise 对象抛出的错误不会传递到外层代码，即不会有任何反应。
-
-        const someAsyncThing = function() {
-            return new Promise(function(resolve, reject) {
-                // 下面一行会报错，因为x没有声明
-                resolve(x + 2);
-            });
+        Promise.prototype.finally = function (callback) {
+            let P = this.constructor;
+            return this.then(
+                value  => P.resolve(callback()).then(() => value),
+                reason => P.resolve(callback()).then(() => { throw reason })
+            );
         };
 
-        someAsyncThing().then(function() {
-            console.log('everything is great');
-        });
+    上面代码中，不管前面的 Promise 是fulfilled还是rejected，都会执行回调函数callback。
 
-        setTimeout(() => { console.log(123) }, 2000);
-        // Uncaught (in promise) ReferenceError: x is not defined
-        // 123
+    从上面的实现还可以看到，finally方法总是会返回原来的值。
 
-    上面代码中，someAsyncThing函数产生的 Promise 对象，内部有语法错误。浏览器运行到这一行，会打印出错误提示ReferenceError: x is not defined，但是不会退出进程、终止脚本执行，2 秒之后还是会输出123。这就是说，Promise 内部的错误不会影响到 Promise 外部的代码，通俗的说法就是“Promise 会吃掉错误”。
+        // resolve 的值是 undefined
+        Promise.resolve(2).then(() => {}, () => {})
 
-    这个脚本放在服务器执行，退出码就是0（即表示执行成功）。不过，Node 有一个unhandledRejection事件，专门监听未捕获的reject错误，上面的脚本会触发这个事件的监听函数，可以在监听函数里面抛出错误。
+        // resolve 的值是 2
+        Promise.resolve(2).finally(() => {})
 
-        process.on('unhandledRejection', function (err, p) {
-            throw err;
-        });
+        // reject 的值是 undefined
+        Promise.reject(3).then(() => {}, () => {})
 
-    上面代码中，unhandledRejection事件的监听函数有两个参数，第一个是错误对象，第二个是报错的 Promise 实例，它可以用来了解发生错误的环境信息。
-
-    注意，Node 有计划在未来废除unhandledRejection事件。如果 Promise 内部有未捕获的错误，会直接终止进程，并且进程的退出码不为 0。
-
-    再看下面的例子。
-
-        const promise = new Promise(function (resolve, reject) {
-            resolve('ok');
-            setTimeout(function () { throw new Error('test') }, 0)
-        });
-        promise.then(function (value) { console.log(value) });
-        // ok
-        // Uncaught Error: test
-
-    上面代码中，Promise 指定在下一轮“事件循环”再抛出错误。到了那个时候，Promise 的运行已经结束了，所以这个错误是在 Promise 函数体外抛出的，会冒泡到最外层，成了未捕获的错误。
-
-    一般总是建议，Promise 对象后面要跟catch方法，这样可以处理 Promise 内部发生的错误。catch方法返回的还是一个 Promise 对象，因此后面还可以接着调用then方法。
-
-        const someAsyncThing = function() {
-            return new Promise(function(resolve, reject) {
-                // 下面一行会报错，因为x没有声明
-                resolve(x + 2);
-            });
-        };
-
-        someAsyncThing()
-        .catch(function(error) {
-            console.log('oh no', error);
-        })
-        .then(function() {
-            console.log('carry on');
-        });
-        // oh no [ReferenceError: x is not defined]
-        // carry on
-
-    上面代码运行完catch方法指定的回调函数，会接着运行后面那个then方法指定的回调函数。如果没有报错，则会跳过catch方法。
-
-        Promise.resolve()
-        .catch(function(error) {
-            console.log('oh no', error);
-        })
-        .then(function() {
-            console.log('carry on');
-        });
-        // carry on
-
-    上面的代码因为没有报错，跳过了catch方法，直接执行后面的then方法。此时，要是then方法里面报错，就与前面的catch无关了。
-
-    catch方法之中，还能再抛出错误。
-
-        const someAsyncThing = function() {
-            return new Promise(function(resolve, reject) {
-                // 下面一行会报错，因为x没有声明
-                resolve(x + 2);
-            });
-        };
-
-        someAsyncThing().then(function() {
-            return someOtherAsyncThing();
-        }).catch(function(error) {
-            console.log('oh no', error);
-            // 下面一行会报错，因为 y 没有声明
-            y + 2;
-        }).then(function() {
-            console.log('carry on');
-        });
-        // oh no [ReferenceError: x is not defined]
-
-    上面代码中，catch方法抛出一个错误，因为后面没有别的catch方法了，导致这个错误不会被捕获，也不会传递到外层。如果改写一下，结果就不一样了。
-
-        someAsyncThing().then(function() {
-            return someOtherAsyncThing();
-        }).catch(function(error) {
-            console.log('oh no', error);
-
-            // 下面一行会报错，因为y没有声明
-            y + 2;
-
-        }).catch(function(error) {
-            console.log('carry on', error);
-        });
-        // oh no [ReferenceError: x is not defined]
-        // carry on [ReferenceError: y is not defined]
-
-    上面代码中，第二个catch方法用来捕获前一个catch方法抛出的错误。
+        // reject 的值是 3
+        Promise.reject(3).finally(() => {})
 
     
 
