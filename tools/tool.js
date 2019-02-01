@@ -15,12 +15,12 @@ export default {
     }
 }
 
-// let name = "zhangsan";
-// let age = "18";
-// let sex = "girl";
+let name = "zhangsan";
+let age = "18";
+let sex = "girl";
 
-// export {
-//     name,
-//     age,
-//     sex
-// }
+export {
+    name,
+    age,
+    sex
+}
